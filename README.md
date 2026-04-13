@@ -2,7 +2,7 @@
 
 Small ES module Vite + Phaser 3 sample for a layered 2D platformer.
 
-It's surprisingly playable even in this very simple form. Good candidate.
+It's surprisingly playable even in this very simple form. 
 
 ## Run
 
