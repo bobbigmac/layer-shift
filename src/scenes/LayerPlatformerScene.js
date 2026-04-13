@@ -404,7 +404,9 @@ export class LayerPlatformerScene extends Phaser.Scene {
     const keyboard = this.input.keyboard;
     const key = (code) => keyboard.addKey(Phaser.Input.Keyboard.KeyCodes[code]);
     keyboard.addCapture(Phaser.Input.Keyboard.KeyCodes.H);
+    keyboard.addCapture(Phaser.Input.Keyboard.KeyCodes.R);
     keyboard.on("keydown-H", (event) => this.handleHubShortcut(event));
+    keyboard.on("keydown-R", (event) => this.handleRestartLevelShortcut(event));
     this.keys = {
       left: [key("A"), key("LEFT")],
       right: [key("D"), key("RIGHT")],
@@ -480,6 +482,30 @@ export class LayerPlatformerScene extends Phaser.Scene {
       layerUpPressed: keyboardEdge("up") || edge("layerUp", padNow.layerUp),
       layerDownPressed: keyboardEdge("down") || edge("layerDown", padNow.layerDown)
     };
+  }
+
+  handleRestartLevelShortcut(event) {
+    if (!event.ctrlKey) return;
+
+    event.preventDefault();
+
+    this.restartCurrentLevel();
+  }
+
+  restartCurrentLevel() {
+    const levelId = this.level.id;
+    this.progress.clearCheckpoint(levelId);
+
+    const prefix = `${levelId}:`;
+    for (const key of [...this.collected]) {
+      if (key.startsWith(prefix)) {
+        this.collected.delete(key);
+      }
+    }
+
+    this.setLevel(this.levelIndex, false);
+    this.showNotice("Level restarted", 2);
+    this.sfx.play("layer");
   }
 
   handleHubShortcut(event) {
