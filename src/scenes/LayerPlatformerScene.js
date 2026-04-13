@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { createGameTextures, SfxBus, TEXTURES } from "../assets.js";
 import { LEVELS, POWER_COPY } from "../data/levels.js";
-import { PlayerController, PLAYER_SIZE } from "../player/PlayerController.js";
+import { PlayerController, overlapsRect, PLAYER_SIZE } from "../player/PlayerController.js";
 import { GameUi, ProgressStore } from "../ui/GameUi.js";
 
 const MAIN_LEVEL_IDS = LEVELS.filter((level) => !level.isHub).map((level) => level.id);
@@ -304,14 +304,60 @@ export class LayerPlatformerScene extends Phaser.Scene {
     });
   }
 
-  getCurrentSolids() {
-    const layer = this.level.layers[this.currentLayer];
+  getSolidsForLayer(layerIndex) {
+    const layer = this.level.layers[layerIndex];
+    if (!layer) return [];
     return [
       ...layer.solids,
       ...this.movingPlatforms
-        .filter((platform) => platform.layerIndex === this.currentLayer)
+        .filter((platform) => platform.layerIndex === layerIndex)
         .map((platform) => platform.rect)
     ];
+  }
+
+  getCurrentSolids() {
+    return this.getSolidsForLayer(this.currentLayer);
+  }
+
+  isSpawnOverlappingSolid(px, py, solids) {
+    return solids.some((solid) => overlapsRect(px, py, PLAYER_SIZE.width, PLAYER_SIZE.height, solid));
+  }
+
+  isGroundedAtCheckpoint(px, py, solids) {
+    const footY = py + PLAYER_SIZE.height;
+    for (const solid of solids) {
+      const [sx, sy, sw] = solid;
+      const solidTop = sy;
+      if (footY <= solidTop + 1 && footY >= solidTop - 4) {
+        if (px + PLAYER_SIZE.width > sx && px < sx + sw) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  getMomentumForCheckpoint(checkpoint) {
+    const state = this.playerController?.state;
+    if (!state) return {};
+
+    const px = Number.isFinite(checkpoint.x) ? checkpoint.x : state.x;
+    const py = Number.isFinite(checkpoint.y) ? checkpoint.y : state.y;
+    const layer = this.getCheckpointLayer(checkpoint);
+    const solids = this.getSolidsForLayer(layer);
+
+    let vx = state.vx;
+    let vy = state.vy;
+
+    if (this.isSpawnOverlappingSolid(px, py, solids)) {
+      vx = 0;
+      vy = 0;
+    } else if (this.isGroundedAtCheckpoint(px, py, solids)) {
+      vy = 0;
+    }
+
+    const facing = vx < 0 ? -1 : 1;
+    return { vx, vy, facing };
   }
 
   updateMovingPlatforms(time) {
@@ -534,7 +580,7 @@ export class LayerPlatformerScene extends Phaser.Scene {
   setActiveCheckpoint(checkpoint, announce = false) {
     this.activeCheckpoint = this.normalizeCheckpoint({
       ...checkpoint,
-      ...this.getPlayerMomentum()
+      ...this.getMomentumForCheckpoint(checkpoint)
     }, {
       ...this.level.start,
       layer: this.currentLayer
@@ -546,17 +592,6 @@ export class LayerPlatformerScene extends Phaser.Scene {
       this.sfx.play("pickup");
       this.showNotice("Checkpoint linked", 1.8);
     }
-  }
-
-  getPlayerMomentum() {
-    const state = this.playerController?.state;
-    if (!state) return {};
-
-    return {
-      vx: state.vx,
-      vy: state.vy,
-      facing: state.facing
-    };
   }
 
   dropCheckpoint() {
